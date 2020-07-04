@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="explanation">
+      <p></p>
+    </div>
+
+    <form method="POST" name="testForm">
+      <p>
+        <label><input type="radio" name="runMode" value="block" />Block</label>
+        <label
+          ><input type="radio" name="runMode" value="unblock" />Unblock</label
+        >
+      </p>
+      <p>
+        <!-- <label><input type="radio" name="runMode" value="mute" />Mute</label>
+       <label
+          ><input type="radio" name="runMode" value="unmute" />Unmute</label
+        >-->
+      </p>
+      <label>
+        <span>@</span
+        ><input
+          placeholder="対象のTwitter IDを入力してください"
+          name="targetScreenName"
+      /></label>
+      <ul>
+        <li>
+          <label
+            ><input
+              type="checkbox"
+              checked="checked"
+              name="exceptFollowing"
+            />Except your following</label
+          >
+        </li>
+        <li>
+          <label
+            ><input
+              type="checkbox"
+              checked="checked"
+              name="exceptFollowers"
+            />Except your followers</label
+          >
+        </li>
+      </ul>
+      <input type="submit" onClick="submitForm();return false;" />
+    </form>
+
+    <div class="viewer"></div>
+    <script src="script.js"></script>
+  </body>
+</html>

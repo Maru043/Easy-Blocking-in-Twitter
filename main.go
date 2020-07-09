@@ -50,13 +50,29 @@ func blockUsers(w http.ResponseWriter, r *http.Request) {
 	if conds.ExceptFollowers {
 		conds.setList()
 	}
+	ch := make(chan string, 10)
 	v := make(url.Values)
 	v.Set("screen_name", conds.TargetScreenName)
 	v.Set("count", strconv.FormatInt(countSize, 10))
-	screenNames := conds.getScreenNamesToBlock(v)
-	api := connectTwitterAPI()
-	for i := 0; i < len(screenNames); i++ {
-		api.BlockUser(screenNames[i], nil)
+	go conds.getScreenNamesToBlock(v, ch)
+
+	var blockCount int
+	for {
+		select {
+		case screenName, ok := <-ch:
+			if ok {
+				api := connectTwitterAPI()
+				api.BlockUser(screenName, nil)
+				blockCount++
+				if blockCount%10 == 0 {
+					log.Printf("%d%s", blockCount, " users have been blocked")
+				}
+			} else {
+				log.Println("Completed Blocking")
+				log.Printf("%s%d%s", "Finally, ", blockCount, " users have been blocked")
+				return
+			}
+		}
 	}
 }
 
@@ -72,6 +88,68 @@ func unblockUsers(w http.ResponseWriter, r *http.Request) {
 	api := connectTwitterAPI()
 	for i := 0; i < len(screenNames); i++ {
 		api.UnblockUser(screenNames[i], nil)
+	}
+	log.Println("Completed Unblocking")
+}
+
+func (conds *SearchConditions) getScreenNamesToBlock(v url.Values, ch chan string) {
+	var cursor int64 = firstPage
+	for cursor != 0 {
+		api := connectTwitterAPI()
+		v.Set("cursor", strconv.FormatInt(cursor, 10))
+		logRateLimitToFollowersList()
+		c, err := api.GetFollowersList(v)
+		if err != nil {
+			log.Println(err)
+		}
+
+		for _, u := range c.Users {
+			if conds.ExceptFollowing && u.Following {
+				continue
+			}
+			if conds.ExceptFollowers && conds.containsTargetUser(u.ScreenName) {
+				continue
+			}
+			ch <- u.ScreenName
+		}
+
+		cursor = c.Next_cursor
+	}
+	close(ch)
+}
+
+func (conds *SearchConditions) getScreenNamesToUnblock(v url.Values) (screenNames []string) {
+	var cursor int64 = firstPage
+	for cursor != 0 {
+		api := connectTwitterAPI()
+		logRateLimitToFollowersList()
+		v.Set("cursor", strconv.FormatInt(cursor, 10))
+		c, err := api.GetFollowersList(v)
+		if err != nil {
+			log.Println(err)
+		}
+
+		for _, u := range c.Users {
+			screenNames = append(screenNames, u.ScreenName)
+		}
+		cursor = c.Next_cursor
+	}
+	return
+}
+
+func logRateLimitToFollowersList() {
+	api := connectTwitterAPI()
+	ss := make([]string, 1)
+	ss[0] = "followers"
+	rateLimiteStatus, err := api.GetRateLimits(ss)
+	if err != nil {
+		log.Println(err)
+	}
+	br := rateLimiteStatus.Resources["followers"]["/followers/list"]
+	log.Printf("%s %d %s\n", "Remaining", br.Remaining, "RateLimits of /followers/list")
+	if br.Remaining == 0 {
+		log.Println("Reached RateLimit")
+		log.Println("Waiting for response...")
 	}
 }
 
@@ -117,65 +195,6 @@ func (m myFollowers) containsTargetUser(s string) bool {
 		}
 	}
 	return false
-}
-
-func (conds *SearchConditions) getScreenNamesToBlock(v url.Values) (screenNames []string) {
-	var cursor int64 = firstPage
-	for cursor != 0 {
-		api := connectTwitterAPI()
-		v.Set("cursor", strconv.FormatInt(cursor, 10))
-		logRateLimitToFollowersList()
-		c, err := api.GetFollowersList(v)
-		if err != nil {
-			log.Println(err)
-		}
-		for _, u := range c.Users {
-			if conds.ExceptFollowing && u.Following {
-				continue
-			}
-			if conds.ExceptFollowers && conds.containsTargetUser(u.ScreenName) {
-				continue
-			}
-			screenNames = append(screenNames, u.ScreenName)
-		}
-		cursor = c.Next_cursor
-	}
-	return
-}
-
-func (conds *SearchConditions) getScreenNamesToUnblock(v url.Values) (screenNames []string) {
-	var cursor int64 = firstPage
-	for cursor != 0 {
-		api := connectTwitterAPI()
-		logRateLimitToFollowersList()
-		v.Set("cursor", strconv.FormatInt(cursor, 10))
-		c, err := api.GetFollowersList(v)
-		if err != nil {
-			log.Println(err)
-		}
-
-		for _, u := range c.Users {
-			screenNames = append(screenNames, u.ScreenName)
-		}
-		cursor = c.Next_cursor
-	}
-	return
-}
-
-func logRateLimitToFollowersList() {
-	api := connectTwitterAPI()
-	ss := make([]string, 1)
-	ss[0] = "followers"
-	rateLimiteStatus, err := api.GetRateLimits(ss)
-	if err != nil {
-		log.Println(err)
-	}
-	br := rateLimiteStatus.Resources["followers"]["/followers/list"]
-	log.Printf("%s %d", "RateLimitRemaining for /followers/list:\n", br.Remaining)
-	if br.Remaining == 0 {
-		log.Println("RateLimited")
-		log.Println("Waiting for response...")
-	}
 }
 
 func connectTwitterAPI() *anaconda.TwitterApi {

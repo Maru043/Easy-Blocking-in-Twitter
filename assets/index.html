@@ -4,9 +4,6 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div class="explanation">
-      <p></p>
-    </div>
 
     <form method="POST" name="testForm">
       <p>
@@ -21,12 +18,25 @@
           ><input type="radio" name="runMode" value="unmute" />Unmute</label
         >-->
       </p>
-      <label>
-        <span>@</span
-        ><input
-          placeholder="対象のTwitter IDを入力してください"
-          name="targetScreenName"
-      /></label>
+      <div class="targetScreenNames">
+      <p>
+        <label>
+          <span>@</span
+          ><input
+            placeholder="対象のTwitter IDを入力してください"
+            name="targetScreenName"
+        /></label>
+      </p>
+      <p>
+        <label>
+          <span>@</span
+          ><input
+            placeholder="対象のTwitter IDを入力してください"
+            name="targetScreenName"
+        /></label>
+      </p>
+    </div>
+      <input type="button" class="addTargetScreenName" value="+"></input>
       <ul>
         <li>
           <label

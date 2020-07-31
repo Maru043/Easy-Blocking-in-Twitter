@@ -3,19 +3,21 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 
 	"github.com/ChimeraCoder/anaconda"
 )
 
 const (
-	firstPage = -1
-	countSize = 200
+	firstPage int64 = -1
+	countSize       = 200
 )
 
 type TwitterAPI struct {
@@ -26,74 +28,91 @@ type TwitterAPI struct {
 }
 
 type SearchConditions struct {
-	TargetScreenName string `json:"targetScreenName"`
-	ExceptFollowing  bool   `json:"exceptFollowing"`
-	ExceptFollowers  bool   `json:"exceptFollowers"`
+	TargetScreenNames []string `json:"targetScreenNames"`
+	TargetScreenName  string
+	ExceptFollowing   bool   `json:"exceptFollowing"`
+	ExceptFollowers   bool   `json:"exceptFollowers"`
+	RunMode           string `json:"runMode"`
 	myFollowers
 }
 
 type myFollowers []string
 
+func init() {
+	createCursorDir()
+}
+
 func main() {
 	server := http.Server{Addr: ":8080"}
-	http.Handle("/", http.StripPrefix("/", http.FileServer(http.Dir("assets"))))
-	http.HandleFunc("/block/", blockUsers)
-	http.HandleFunc("/unblock/", unblockUsers)
+	http.Handle("/", http.FileServer(http.Dir("assets")))
+	http.HandleFunc("/process/", process)
 	server.ListenAndServe()
 }
 
-func blockUsers(w http.ResponseWriter, r *http.Request) {
-	conds := parseRequest(r)
-	if !conds.existsTargetScreenName() {
+func process(w http.ResponseWriter, r *http.Request) {
+	conds := extractConditions(r)
+	if !conds.existsTargetScreenNames() {
 		return
 	}
 	if conds.ExceptFollowers {
 		conds.setList()
 	}
-	ch := make(chan string, 3000)
 	v := make(url.Values)
-	v.Set("screen_name", conds.TargetScreenName)
 	v.Set("count", strconv.FormatInt(countSize, 10))
-	go conds.getScreenNamesToBlock(v, ch)
 
-	var blockCount int
-	for {
-		select {
-		case screenName, ok := <-ch:
-			if ok {
-				api := connectTwitterAPI()
-				api.BlockUser(screenName, nil)
-				blockCount++
-				if blockCount%500 == 0 {
-					log.Printf("%d%s", blockCount, " users have been blocked")
+	for i := 0; i < len(conds.TargetScreenNames); i++ {
+		conds.TargetScreenName = conds.TargetScreenNames[i]
+		v.Set("screen_name", conds.TargetScreenName)
+		ch := make(chan string, 3000)
+		go conds.getScreenNames(v, ch)
+		api := connectTwitterAPI()
+		log.Printf("%s %s's followers", "Start blocking", conds.TargetScreenName)
+
+		switch conds.RunMode {
+		case "block":
+			var blockCount int
+			for {
+				select {
+				case screenName, ok := <-ch:
+					if ok {
+						api.BlockUser(screenName, nil)
+						blockCount++
+						if blockCount%500 == 0 {
+							log.Printf("%d%s", blockCount, " users have been blocked")
+							api = connectTwitterAPI()
+						}
+					} else {
+						log.Printf("%s %d %s's %s", "Finally,", blockCount, conds.TargetScreenName, "users have been blocked")
+						goto L
+					}
 				}
-			} else {
-				log.Println("Completed Blocking")
-				log.Printf("%s%d%s", "Finally, ", blockCount, " users have been blocked")
-				return
+			}
+
+		case "unblock":
+			var unblockCount int
+			for {
+				select {
+				case screenName, ok := <-ch:
+					if ok {
+						api.UnblockUser(screenName, nil)
+						unblockCount++
+						if unblockCount%500 == 0 {
+							log.Printf("%d%s", unblockCount, " users have been unblocked")
+							api = connectTwitterAPI()
+						}
+					} else {
+						log.Printf("%s%d%s", "Finally, ", unblockCount, conds.TargetScreenName+"'s users have been unblocked")
+						goto L
+					}
+				}
 			}
 		}
+	L:
 	}
+	log.Println("Completed processing")
 }
-
-func unblockUsers(w http.ResponseWriter, r *http.Request) {
-	conds := parseRequest(r)
-	if !conds.existsTargetScreenName() {
-		return
-	}
-	v := make(url.Values)
-	v.Set("screen_name", conds.TargetScreenName)
-	v.Set("count", strconv.FormatInt(countSize, 10))
-	screenNames := conds.getScreenNamesToUnblock(v)
-	api := connectTwitterAPI()
-	for i := 0; i < len(screenNames); i++ {
-		api.UnblockUser(screenNames[i], nil)
-	}
-	log.Println("Completed Unblocking")
-}
-
-func (conds *SearchConditions) getScreenNamesToBlock(v url.Values, ch chan string) {
-	var cursor int64 = firstPage
+func (conds *SearchConditions) getScreenNames(v url.Values, ch chan string) {
+	cursor := getSavedCursor(conds.TargetScreenName)
 	for cursor != 0 {
 		api := connectTwitterAPI()
 		v.Set("cursor", strconv.FormatInt(cursor, 10))
@@ -112,28 +131,63 @@ func (conds *SearchConditions) getScreenNamesToBlock(v url.Values, ch chan strin
 			}
 			ch <- u.ScreenName
 		}
+
 		cursor = c.Next_cursor
+		if cursor == 0 {
+			deleteCursorFile(conds.TargetScreenName)
+		} else {
+			saveCursor(conds.TargetScreenName, cursor)
+		}
 	}
 	close(ch)
 }
 
-func (conds *SearchConditions) getScreenNamesToUnblock(v url.Values) (screenNames []string) {
-	var cursor int64 = firstPage
-	for cursor != 0 {
-		api := connectTwitterAPI()
-		logRateLimitToFollowersList()
-		v.Set("cursor", strconv.FormatInt(cursor, 10))
-		c, err := api.GetFollowersList(v)
-		if err != nil {
-			log.Println(err)
-		}
-
-		for _, u := range c.Users {
-			screenNames = append(screenNames, u.ScreenName)
-		}
-		cursor = c.Next_cursor
+func getSavedCursor(targetScreenName string) int64 {
+	if _, err := os.Stat("cursor/" + targetScreenName); err != nil {
+		return firstPage
 	}
-	return
+	b, err := ioutil.ReadFile("cursor/" + targetScreenName)
+	fmt.Println(b, err)
+	if err != nil {
+		log.Println(err)
+	}
+	s := string(b)
+	if s == "" {
+		return firstPage
+	}
+	cursor, err := strconv.Atoi(s)
+	if err != nil {
+		log.Println(err)
+	}
+	return int64(cursor)
+}
+
+func saveCursor(targetScreenName string, cursor int64) {
+	s := strconv.Itoa(int(cursor))
+	buf := make([]byte, 64)
+	buf = []byte(s)
+	err := ioutil.WriteFile("cursor/"+targetScreenName, buf, 0777)
+	if err != nil {
+		log.Println(err)
+	}
+}
+
+func deleteCursorFile(targetScreenName string) {
+	if _, err := os.Stat("cursor/" + targetScreenName); err != nil {
+		return
+	}
+	if err := os.Remove("cursor/" + targetScreenName); err != nil {
+		log.Println(err)
+	}
+}
+
+func createCursorDir() {
+	if _, err := os.Stat("cursor"); os.IsNotExist(err) {
+		err := os.Mkdir("cursor", 0777)
+		if err != nil {
+			panic(err)
+		}
+	}
 }
 
 func logRateLimitToFollowersList() {
@@ -152,7 +206,7 @@ func logRateLimitToFollowersList() {
 	}
 }
 
-func parseRequest(r *http.Request) (conds *SearchConditions) {
+func extractConditions(r *http.Request) (conds *SearchConditions) {
 	body := r.Body
 	defer body.Close()
 	buf := new(bytes.Buffer)
@@ -161,10 +215,9 @@ func parseRequest(r *http.Request) (conds *SearchConditions) {
 	return conds
 }
 
-func (conds *SearchConditions) existsTargetScreenName() bool {
-	targetScreenName := conds.TargetScreenName
-	if targetScreenName == "" {
-		log.Println("TargetScreenName doesn't exist")
+func (conds *SearchConditions) existsTargetScreenNames() bool {
+	if len(conds.TargetScreenNames) == 0 {
+		log.Println("TargetScreenNames doesn't exist")
 		return false
 	}
 	return true

@@ -50,7 +50,7 @@ func blockUsers(w http.ResponseWriter, r *http.Request) {
 	if conds.ExceptFollowers {
 		conds.setList()
 	}
-	ch := make(chan string, 10)
+	ch := make(chan string, 3000)
 	v := make(url.Values)
 	v.Set("screen_name", conds.TargetScreenName)
 	v.Set("count", strconv.FormatInt(countSize, 10))
@@ -64,7 +64,7 @@ func blockUsers(w http.ResponseWriter, r *http.Request) {
 				api := connectTwitterAPI()
 				api.BlockUser(screenName, nil)
 				blockCount++
-				if blockCount%10 == 0 {
+				if blockCount%500 == 0 {
 					log.Printf("%d%s", blockCount, " users have been blocked")
 				}
 			} else {
@@ -112,7 +112,6 @@ func (conds *SearchConditions) getScreenNamesToBlock(v url.Values, ch chan strin
 			}
 			ch <- u.ScreenName
 		}
-
 		cursor = c.Next_cursor
 	}
 	close(ch)

@@ -174,9 +174,7 @@ func (conds *SearchConditions) getSavedCursor() int64 {
 		log.Println(err)
 	}
 	s := string(b)
-	if s == "" {
-		return firstPage
-	}
+
 	cursor, err := strconv.Atoi(s)
 	if err != nil {
 		log.Println(err)

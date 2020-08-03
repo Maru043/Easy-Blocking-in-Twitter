@@ -238,6 +238,7 @@ func logRateLimitToFollowersList() {
 
 func (m *myFollowers) setList() {
 	api := connectTwitterAPI()
+
 	var cursor int64 = firstPage
 	v := make(url.Values)
 	v.Set("count", strconv.FormatInt(countSize, 10))

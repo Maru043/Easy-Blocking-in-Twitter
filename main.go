@@ -32,6 +32,7 @@ type SearchConditions struct {
 	ExceptFollowing   bool   `json:"exceptFollowing"`
 	ExceptFollowers   bool   `json:"exceptFollowers"`
 	RunMode           string `json:"runMode"`
+	BlockTarget       bool   `json:"blockTarget"`
 	myFollowers
 }
 
@@ -64,8 +65,12 @@ func process(w http.ResponseWriter, r *http.Request) {
 		conds.TargetScreenName = conds.TargetScreenNames[i]
 		v.Set("screen_name", conds.TargetScreenName)
 		ch := make(chan string, 3000)
+		if conds.BlockTarget {
+			ch <- conds.TargetScreenName
+		}
 		go conds.getScreenNames(v, ch)
 		log.Printf("%s %s's followers", "Start blocking", conds.TargetScreenName)
+
 		api := connectTwitterAPI()
 		switch conds.RunMode {
 		case "block":
@@ -74,11 +79,16 @@ func process(w http.ResponseWriter, r *http.Request) {
 				select {
 				case screenName, ok := <-ch:
 					if ok {
-						api.BlockUser(screenName, nil)
+						if _, err := api.BlockUser(screenName, nil); err != nil {
+							api = connectTwitterAPI()
+							api.BlockUser(screenName, nil)
+						}
 						blockCount++
 						if blockCount%500 == 0 {
-							log.Printf("%d %s's %s", blockCount, conds.TargetScreenName, " followers have been blocked")
-							api = connectTwitterAPI()
+							log.Printf("%d %s's %s", blockCount, conds.TargetScreenName, "followers have been blocked")
+						}
+						if len(ch) == 0 {
+							log.Println("channel is empty")
 						}
 					} else {
 						log.Printf("%s %d %s's %s", "Finally,", blockCount, conds.TargetScreenName, "followers have been blocked")

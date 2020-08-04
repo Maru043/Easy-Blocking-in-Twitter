@@ -16,10 +16,7 @@ p {
   margin: 5px 0 5px 0;
 }
 
-.addTargetScreenName {
-  width: 28px;
-  height: 28px;
-  margin: 5px 0 5px 5px;
-  background-color: white;
-  font-size: 20px;
+textarea {
+  width: 400px;
+  height: 400px;
 }

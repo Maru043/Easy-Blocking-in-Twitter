@@ -4,7 +4,6 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-
     <form method="POST" name="testForm">
       <p>
         <label><input type="radio" name="runMode" value="block" />Block</label>
@@ -18,26 +17,20 @@
           ><input type="radio" name="runMode" value="unmute" />Unmute</label
         >-->
       </p>
-      <div class="targetScreenNames">
-      <p>
-        <label>
-          <span>@</span
-          ><input
-            placeholder="対象のTwitter IDを入力してください"
-            name="targetScreenName"
-        /></label>
-      </p>
-      <p>
-        <label>
-          <span>@</span
-          ><input
-            placeholder="対象のTwitter IDを入力してください"
-            name="targetScreenName"
-        /></label>
-      </p>
-    </div>
-      <input type="button" class="addTargetScreenName" value="+"></input>
+
+      <textarea
+        placeholder="対象のTwitter IDを@を除いて入力してください.&#010;カンマ,読点,改行,スペースで複数のIDを入力出来ます."
+        name="targetScreenNames"
+        class="targetScreenNames"
+      ></textarea>
+
       <ul>
+        <li>
+          <label
+            ><input type="checkbox" checked="checked" name="blockTarget" />Block
+            the above users</label
+          >
+        </li>
         <li>
           <label
             ><input

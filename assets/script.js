@@ -10,6 +10,12 @@ function submitForm() {
     .filter(function (e) {
       return e !== "";
     });
+  for (let i = 0; i < conditions.targetScreenNames.length; i++) {
+    conditions.targetScreenNames[i] = conditions.targetScreenNames[i].replace(
+      /@/g,
+      ""
+    );
+  }
   conditions.exceptFollowing = form.elements.exceptFollowing.checked;
   conditions.exceptFollowers = form.elements.exceptFollowers.checked;
   conditions.runMode = form.elements.runMode.value;

@@ -96,25 +96,6 @@ func process(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
-
-		case "unblock":
-			var unblockCount int
-			for {
-				select {
-				case screenName, ok := <-ch:
-					if ok {
-						api.UnblockUser(screenName, nil)
-						unblockCount++
-						if unblockCount%500 == 0 {
-							log.Printf("%d%s", unblockCount, " users have been unblocked")
-							api = connectTwitterAPI()
-						}
-					} else {
-						log.Printf("%s%d%s", "Finally, ", unblockCount, conds.TargetScreenName+"'s users have been unblocked")
-						goto L
-					}
-				}
-			}
 		}
 	L:
 	}

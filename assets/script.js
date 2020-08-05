@@ -3,19 +3,8 @@
 function submitForm() {
   const form = document.forms.testForm;
   const conditions = { targetScreenNames: [] };
-  const targetScreenNames = form.elements.targetScreenNames.value;
 
-  conditions.targetScreenNames = targetScreenNames
-    .split(/[,、\s]/)
-    .filter(function (e) {
-      return e !== "";
-    });
-  for (let i = 0; i < conditions.targetScreenNames.length; i++) {
-    conditions.targetScreenNames[i] = conditions.targetScreenNames[i].replace(
-      /@/g,
-      ""
-    );
-  }
+  conditions.targetScreenNames = parseTextarea();
   conditions.exceptFollowing = form.elements.exceptFollowing.checked;
   conditions.exceptFollowers = form.elements.exceptFollowers.checked;
   conditions.runMode = form.elements.runMode.value;
@@ -30,4 +19,17 @@ function submitForm() {
   }).then(function (response) {
     console.log(response);
   });
+}
+
+function parseTextarea() {
+  const form = document.forms.testForm;
+  const textarea = form.elements.targetScreenNames.value;
+
+  const targetScreenNames = textarea.split(/[,、\s]/).filter(function (e) {
+    return e !== "";
+  });
+  for (let i = 0; i < targetScreenNames.length; i++) {
+    targetScreenNames[i] = targetScreenNames[i].replace(/@/g, "");
+  }
+  return Array.from(new Set(targetScreenNames));
 }

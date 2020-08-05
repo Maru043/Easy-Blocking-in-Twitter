@@ -63,14 +63,16 @@ func process(w http.ResponseWriter, r *http.Request) {
 	conds.createCursorFiles()
 	for i := 0; i < len(conds.TargetScreenNames); i++ {
 		conds.TargetScreenName = conds.TargetScreenNames[i]
-		v.Set("screen_name", conds.TargetScreenName)
-		ch := make(chan string, 3000)
 		if conds.BlockTarget {
-			ch <- conds.TargetScreenName
+			api := connectTwitterAPI()
+			api.BlockUser(conds.TargetScreenName, nil)
 		}
-		go conds.getScreenNames(v, ch)
-		log.Printf("%s %s's followers", "Start blocking", conds.TargetScreenName)
 
+		v.Set("screen_name", conds.TargetScreenName)
+		ch := make(chan string, countSize)
+		go conds.getScreenNames(v, ch)
+
+		log.Printf("%s %s's followers", "Start blocking", conds.TargetScreenName)
 		api := connectTwitterAPI()
 		switch conds.RunMode {
 		case "block":
@@ -86,9 +88,6 @@ func process(w http.ResponseWriter, r *http.Request) {
 						blockCount++
 						if blockCount%500 == 0 {
 							log.Printf("%d %s's %s", blockCount, conds.TargetScreenName, "followers have been blocked")
-						}
-						if len(ch) == 0 {
-							log.Println("channel is empty")
 						}
 					} else {
 						log.Printf("%s %d %s's %s", "Finally,", blockCount, conds.TargetScreenName, "followers have been blocked")

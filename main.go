@@ -86,7 +86,7 @@ func process(w http.ResponseWriter, r *http.Request) {
 							api.BlockUser(screenName, nil)
 						}
 						blockCount++
-						if blockCount%500 == 0 {
+						if blockCount%200 == 0 {
 							log.Printf("%d %s's %s", blockCount, conds.TargetScreenName, "followers have been blocked")
 						}
 					} else {
@@ -106,7 +106,6 @@ func (conds *SearchConditions) getScreenNames(v url.Values, ch chan string) {
 	for cursor != 0 {
 		api := connectTwitterAPI()
 		v.Set("cursor", strconv.FormatInt(cursor, 10))
-		logRateLimitToFollowersList()
 		c, err := api.GetFollowersList(v)
 		if err != nil {
 			log.Println(err)
@@ -211,36 +210,23 @@ func createCursorDir() {
 	}
 }
 
-func logRateLimitToFollowersList() {
-	api := connectTwitterAPI()
-	ss := make([]string, 1)
-	ss[0] = "followers"
-	rateLimiteStatus, err := api.GetRateLimits(ss)
-	if err != nil {
-		log.Println(err)
-	}
-	br := rateLimiteStatus.Resources["followers"]["/followers/list"]
-	log.Printf("%s %d %s\n", "Remaining", br.Remaining, "RateLimits of /followers/list")
-	if br.Remaining == 0 {
-		log.Println("Reached RateLimit, waiting for response...")
-	}
-}
-
 func (m *myFollowers) setList() {
 	api := connectTwitterAPI()
 
 	var cursor int64 = firstPage
 	v := make(url.Values)
 	v.Set("count", strconv.FormatInt(countSize, 10))
+
+	log.Println("Setting my followers list...")
 	for cursor != 0 {
 		v.Set("cursor", strconv.FormatInt(cursor, 10))
-		logRateLimitToFollowersList()
 		c, _ := api.GetFollowersList(v)
 		for _, u := range c.Users {
 			*m = append(*m, u.ScreenName)
 		}
 		cursor = c.Next_cursor
 	}
+	log.Println("Completed")
 }
 
 func (m myFollowers) ContainsTargetUser(s string) bool {

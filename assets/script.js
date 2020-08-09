@@ -25,7 +25,7 @@ function parseTextarea() {
   const form = document.forms.testForm;
   const textarea = form.elements.targetScreenNames.value;
 
-  const targetScreenNames = textarea.split(/[,、\s]/).filter(function (e) {
+  const targetScreenNames = textarea.split(/[,?、\s]/).filter(function (e) {
     return e !== "";
   });
   for (let i = 0; i < targetScreenNames.length; i++) {
@@ -33,3 +33,4 @@ function parseTextarea() {
   }
   return Array.from(new Set(targetScreenNames));
 }
+git@github.com:oreilly-japan/go-programming-blueprints.git

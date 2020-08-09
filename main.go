@@ -74,6 +74,7 @@ func process(w http.ResponseWriter, r *http.Request) {
 
 		log.Printf("%s %s's followers", "Start blocking", conds.TargetScreenName)
 		api := connectTwitterAPI()
+		followersCount := findFollowersCount(conds.TargetScreenName)
 		switch conds.RunMode {
 		case "block":
 			var blockCount int
@@ -87,7 +88,7 @@ func process(w http.ResponseWriter, r *http.Request) {
 						}
 						blockCount++
 						if blockCount%200 == 0 {
-							log.Printf("%d %s's %s", blockCount, conds.TargetScreenName, "followers have been blocked")
+							log.Printf("%d/%d %s's %s", blockCount, followersCount, conds.TargetScreenName, "followers have been blocked")
 						}
 					} else {
 						log.Printf("%s %d %s's %s", "Finally,", blockCount, conds.TargetScreenName, "followers have been blocked")
@@ -109,6 +110,7 @@ func (conds *SearchConditions) getScreenNames(v url.Values, ch chan string) {
 		c, err := api.GetFollowersList(v)
 		if err != nil {
 			log.Println(err)
+			break
 		}
 
 		for _, u := range c.Users {
@@ -236,6 +238,17 @@ func (m myFollowers) ContainsTargetUser(s string) bool {
 		}
 	}
 	return false
+}
+
+func findFollowersCount(screenName string) int {
+	api := connectTwitterAPI()
+	u, err := api.GetUsersShow(screenName, nil)
+	if err != nil {
+		log.Println(err)
+		return 0
+	}
+
+	return u.FollowersCount
 }
 
 func connectTwitterAPI() *anaconda.TwitterApi {

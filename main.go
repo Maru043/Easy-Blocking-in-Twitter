@@ -251,6 +251,10 @@ func findFollowersCount(screenName string) int {
 	return u.FollowersCount
 }
 
+func logCurrentTarget() {
+
+}
+
 func connectTwitterAPI() *anaconda.TwitterApi {
 	bytes, err := ioutil.ReadFile("./key.json")
 	if err != nil {

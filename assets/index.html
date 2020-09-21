@@ -4,7 +4,7 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <form method="POST" name="testForm">
+    <form method="POST" name="submitForm">
       <p>
         <label
           ><input
@@ -14,16 +14,16 @@
             checked
           />Block</label
         >
-        <!-- 
+
         <label
           ><input type="radio" name="runMode" value="unblock" />Unblock</label
         >
       </p>
       <p>
-       <label><input type="radio" name="runMode" value="mute" />Mute</label>
-       <label
+        <label><input type="radio" name="runMode" value="mute" />Mute</label>
+        <label
           ><input type="radio" name="runMode" value="unmute" />Unmute</label
-        >-->
+        >
       </p>
 
       <textarea
@@ -33,12 +33,6 @@
       ></textarea>
 
       <ul>
-        <li>
-          <label
-            ><input type="checkbox" checked="checked" name="blockTarget" />Block
-            the above users</label
-          >
-        </li>
         <li>
           <label
             ><input
@@ -58,7 +52,7 @@
           >
         </li>
       </ul>
-      <input type="submit" onClick="submitForm();return false;" />
+      <input type="submit" onClick="return sendForm();" />
     </form>
 
     <div class="viewer"></div>

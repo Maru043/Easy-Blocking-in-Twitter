@@ -1,15 +1,9 @@
 "use strict";
 
-function submitForm() {
-  const form = document.forms.testForm;
-  const conditions = { targetScreenNames: [] };
+function sendForm() {
+  const conditions = parseSubmitForm();
+  if (conditions === null) return false;
 
-  conditions.targetScreenNames = parseTextarea();
-  conditions.exceptFollowing = form.elements.exceptFollowing.checked;
-  conditions.exceptFollowers = form.elements.exceptFollowers.checked;
-  conditions.runMode = form.elements.runMode.value;
-  conditions.blockTarget = form.elements.blockTarget.checked;
-  if (conditions.runMode === "") return;
   fetch(`http://${location.host}/process/`, {
     method: "POST",
     headers: {
@@ -19,12 +13,29 @@ function submitForm() {
   }).then(function (response) {
     console.log(response);
   });
+  return false;
 }
 
-function parseTextarea() {
-  const form = document.forms.testForm;
-  const textarea = form.elements.targetScreenNames.value;
+function parseSubmitForm() {
+  const form = document.forms.submitForm;
+  const conditions = { targetScreenNames: [] };
+  conditions.runMode = form.elements.runMode.value;
+  if (conditions.runMode === "") return null;
+  conditions.targetScreenNames = parseTextarea(
+    form.elements.targetScreenNames.value
+  );
 
+  if (conditions.runMode === "unblock" || conditions.runMode === "unmute") {
+    conditions.exceptFollowing = false;
+    conditions.exceptFollowers = false;
+  } else {
+    conditions.exceptFollowing = form.elements.exceptFollowing.checked;
+    conditions.exceptFollowers = form.elements.exceptFollowers.checked;
+  }
+  return conditions;
+}
+
+function parseTextarea(textarea) {
   const targetScreenNames = textarea.split(/[,?、\s]/).filter(function (e) {
     return e !== "";
   });
@@ -33,4 +44,9 @@ function parseTextarea() {
   }
   return Array.from(new Set(targetScreenNames));
 }
-git@github.com:oreilly-japan/go-programming-blueprints.git
+
+function toggleExceptConf() {
+  const form = document.forms.submitForm;
+  const following = form.exceptFollowing;
+  const followers = form.exceptFollowers;
+}

@@ -32,7 +32,6 @@ type SearchConditions struct {
 	ExceptFollowing   bool   `json:"exceptFollowing"`
 	ExceptFollowers   bool   `json:"exceptFollowers"`
 	RunMode           string `json:"runMode"`
-	BlockTarget       bool   `json:"blockTarget"`
 	myFollowers
 }
 
@@ -63,43 +62,56 @@ func process(w http.ResponseWriter, r *http.Request) {
 	conds.createCursorFiles()
 	for i := 0; i < len(conds.TargetScreenNames); i++ {
 		conds.TargetScreenName = conds.TargetScreenNames[i]
-		if conds.BlockTarget {
-			api := connectTwitterAPI()
-			api.BlockUser(conds.TargetScreenName, nil)
-		}
-
 		v.Set("screen_name", conds.TargetScreenName)
 		ch := make(chan string, countSize)
+		ch <- conds.TargetScreenName
 		go conds.getScreenNames(v, ch)
-
-		log.Printf("%s %s's followers", "Start blocking", conds.TargetScreenName)
-		api := connectTwitterAPI()
-		followersCount := findFollowersCount(conds.TargetScreenName)
-		switch conds.RunMode {
-		case "block":
-			var blockCount int
-			for {
-				select {
-				case screenName, ok := <-ch:
-					if ok {
-						if _, err := api.BlockUser(screenName, nil); err != nil {
-							api = connectTwitterAPI()
-							api.BlockUser(screenName, nil)
-						}
-						blockCount++
-						if blockCount%200 == 0 {
-							log.Printf("%d/%d %s's %s", blockCount, followersCount, conds.TargetScreenName, "followers have been blocked")
-						}
-					} else {
-						log.Printf("%s %d %s's %s", "Finally,", blockCount, conds.TargetScreenName, "followers have been blocked")
-						goto L
-					}
-				}
-			}
-		}
-	L:
+		process2(conds.RunMode, conds.TargetScreenName, ch)
 	}
 	log.Println("Completed processing")
+}
+
+func process2(mode string, sn string, ch chan string) {
+	log.Printf("%s %s's followers", mode, sn)
+	api := connectTwitterAPI()
+	proc := selectProc(api, mode)
+	followersCount := findFollowersCount(sn)
+	var cnt int
+	for {
+		select {
+		case screenName, ok := <-ch:
+			if ok {
+				if _, err := proc(screenName, nil); err != nil {
+					api = connectTwitterAPI()
+					proc = selectProc(api, mode)
+					proc(screenName, nil)
+				}
+				cnt++
+				if cnt%200 == 0 {
+					log.Printf("%d/%d %s's %s", cnt, followersCount, sn, "followers have been processed")
+				}
+			} else {
+				log.Printf("%s %d %s's %s", "Finally,", cnt, sn, "followers have been processed")
+				goto L
+			}
+		}
+	}
+L:
+}
+
+func selectProc(api *anaconda.TwitterApi, mode string) func(string, url.Values) (anaconda.User, error) {
+	var proc func(string, url.Values) (anaconda.User, error)
+	switch mode {
+	case "block":
+		proc = api.BlockUser
+	case "unblock":
+		proc = api.UnblockUser
+	case "mute":
+		proc = api.MuteUser
+	case "unmute":
+		proc = api.UnmuteUser
+	}
+	return proc
 }
 
 func (conds *SearchConditions) getScreenNames(v url.Values, ch chan string) {
@@ -117,7 +129,7 @@ func (conds *SearchConditions) getScreenNames(v url.Values, ch chan string) {
 			if conds.ExceptFollowing && u.Following {
 				continue
 			}
-			if conds.ExceptFollowers && conds.ContainsTargetUser(u.ScreenName) {
+			if conds.ExceptFollowers && conds.containsTargetUser(u.ScreenName) {
 				continue
 			}
 			ch <- u.ScreenName
@@ -231,7 +243,7 @@ func (m *myFollowers) setList() {
 	log.Println("Completed")
 }
 
-func (m myFollowers) ContainsTargetUser(s string) bool {
+func (m myFollowers) containsTargetUser(s string) bool {
 	for i := 0; i < len(m); i++ {
 		if m[i] == s {
 			return true
@@ -251,14 +263,10 @@ func findFollowersCount(screenName string) int {
 	return u.FollowersCount
 }
 
-func logCurrentTarget() {
-
-}
-
 func connectTwitterAPI() *anaconda.TwitterApi {
 	bytes, err := ioutil.ReadFile("./key.json")
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	var twitterAPI TwitterAPI
 	json.Unmarshal(bytes, &twitterAPI)
